@@ -338,6 +338,34 @@ class BitstructTest(unittest.TestCase):
             self.assertEqual(pack(fmt, value), packed)
             self.assertEqual(unpack(fmt, packed), (value, ))
 
+    def test_signed_integer_ones(self):
+        """Pack and unpack signed ones' complement integer values.
+
+        """
+
+        datas = [
+            ('o2', 0x01, b'\x40'),
+            ('o3', 0x03, b'\x60'),
+            ('o4', 0x07, b'\x70'),
+            ('o5', 0x0f, b'\x78'),
+            ('o6', 0x1f, b'\x7c'),
+            ('o7', 0x3f, b'\x7e'),
+            ('o8', 0x7f, b'\x7f'),
+            ('o9', 0xff, b'\x7f\x80'),
+            ('o1',    0, b'\x00'),
+            ('o2',   -1, b'\x80'),
+            ('o3',   -1, b'\xc0'),
+            ('o3',   -2, b'\xa0'),
+        ]
+
+        for fmt, value, packed in datas:
+            self.assertEqual(pack(fmt, value), packed)
+            self.assertEqual(unpack(fmt, packed), (value, ))
+
+        # test -0
+        self.assertEqual(unpack('o1', b'\0x80'), (0,))
+        self.assertEqual(unpack('o4', b'\0xf0'), (0,))
+
     def test_unsigned_integer(self):
         """Pack and unpack unsigned integer values.
 

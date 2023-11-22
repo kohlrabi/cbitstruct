@@ -93,6 +93,7 @@ static Desc c_parse_one(const char* fmt, const char** end, Desc* previous)
     switch (desc.type) {
     case 'u':
     case 's':
+    case 'o':
     case 'b':
     case 't':
     case 'r':
@@ -330,6 +331,13 @@ static void c_pack(
             data >>= padding;
         }
 
+        if (desc->type == 'o') {
+            uint64_t sign_bit = BIT_SET(uint64_t, desc->bits - 1);
+            if (data & sign_bit) {
+                data--;
+            }
+        }
+
         // Switch bits if necessary
         if (!desc->msb_first) {
             data = c_bitswitch(data, desc->bits);
@@ -418,11 +426,14 @@ static void c_unpack(
 #endif
         }
 
-        if (desc->type == 's' && desc->bits < 64) {
+        if ((desc->type == 's' || desc->type == 'o') && desc->bits < 64) {
             uint64_t sign_bit = BIT_SET(uint64_t, desc->bits - 1);
             if (data & sign_bit) {
                 // two's complement: replace high bits by ones
                 data |= BIT_MASK(uint64_t, 64) << desc->bits;
+                if (desc->type == 'o') {
+                    data++;
+                }
             }
         }
 
@@ -486,6 +497,7 @@ static bool python_to_parsed_elements(
             }
             break;
         case 's':
+        case 'o':
 #if SIZEOF_LONG >= 8
             el->int64 = PyLong_AsLong(v);
 #else
@@ -572,6 +584,7 @@ static PyObject* parsed_elements_to_python(ParsedElement* elements, CompiledForm
 #endif // SIZEOF_LONG >= 8
             break;
         case 's':
+        case 'o':
 #if SIZEOF_LONG >= 8
             v = PyLong_FromLong(el->int64);
 #else
