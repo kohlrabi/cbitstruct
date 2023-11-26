@@ -387,6 +387,24 @@ class BitstructTest(unittest.TestCase):
             self.assertEqual(pack(fmt, value), packed)
             self.assertEqual(unpack(fmt, packed), (value, ))
 
+    def test_bcd(self):
+        """Pack and unpack BCD values packed (n) or unpacked (N)
+
+        """
+
+        datas = [
+            ('n8',   26,   b'\x26'),
+            ('n16',  4587, b'\x45\x87'),
+            ('n16<', 8745, b'\x45\x87'),
+            ('n4',   7,    b'\x70'),
+            ('n8',   7,    b'\x07'),
+            ('N16',  78,   b'\x07\x08'),
+        ]
+
+        for fmt, value, packed in datas:
+            self.assertEqual(pack(fmt, value), packed)
+            self.assertEqual(unpack(fmt, packed), (value, ))
+
     def test_bad_float_size(self):
         """Test of bad float size.
 
