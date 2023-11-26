@@ -96,6 +96,8 @@ static Desc c_parse_one(const char* fmt, const char** end, Desc* previous)
     case 'b':
     case 't':
     case 'r':
+    case 'n':
+    case 'N':
         if (desc.bits < 1 || desc.bits > 64) {
             // bits > 64 is only supported for padding
             desc.type = BAD_FORMAT;
@@ -290,6 +292,32 @@ static void c_bitcpy(uint8_t* dst, int dst_bit_offset, uint64_t data, int nbits)
     *dst |= first_byte & first_byte_mask;
 }
 
+static uint64_t c_pack_bcd(uint64_t data, int bits, bool packed)
+{
+    uint64_t out = 0;
+    int step = packed ? 4 : 8;
+
+    for(int i = 0; i < bits; i += step) {
+        out |= (data % 10) << i;
+        data /= 10;
+    }
+
+    return out;
+}
+
+static uint64_t c_unpack_bcd(uint64_t data, int bits, bool packed)
+{
+    uint64_t out = 0;
+    int step = packed ? 4 : 8;
+
+    for (int i = bits; i >= 0; i -= step) {
+        out *= 10;
+        out += (data >> i) & 0xf;
+    }
+
+    return out;
+}
+
 static void c_pack(
     uint8_t* out,
     const ParsedElement* elements,
@@ -328,6 +356,14 @@ static void c_pack(
             c_byteswitch((uint8_t*)&data, nbytes);
 #endif
             data >>= padding;
+        }
+
+        if (desc->type == 'n') {
+            data = c_pack_bcd(data, desc->bits, true);
+        }
+
+        if (desc->type == 'N') {
+            data = c_pack_bcd(data, desc->bits, false);
         }
 
         // Switch bits if necessary
@@ -426,6 +462,14 @@ static void c_unpack(
             }
         }
 
+        if(desc->type == 'n') {
+            data = c_unpack_bcd(data, desc->bits, true);
+        }
+
+        if(desc->type == 'N') {
+            data = c_unpack_bcd(data, desc->bits, false);
+        }
+
         out[n].uint64 = data;
     }
 }
@@ -476,6 +520,8 @@ static bool python_to_parsed_elements(
 
         switch (desc->type) {
         case 'u':
+        case 'n':
+        case 'N':
 #if SIZEOF_LONG >= 8
             el->uint64 = PyLong_AsUnsignedLong(v);
 #else
@@ -565,6 +611,8 @@ static PyObject* parsed_elements_to_python(ParsedElement* elements, CompiledForm
 
         switch (desc->type) {
         case 'u':
+        case 'n':
+        case 'N':
 #if SIZEOF_LONG >= 8
             v = PyLong_FromUnsignedLong(el->uint64);
 #else
