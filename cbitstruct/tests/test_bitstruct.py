@@ -644,6 +644,30 @@ class BitstructTest(unittest.TestCase):
         cbitstruct.compile('p1u1')
         cbitstruct.compile('p1u1', ['a'])
 
+    def test_mixed_endian(self):
+        fmts = [
+            # big endian mixed endian
+            ('u16+', 0xab_67,               b'\x67\xab'),
+            ('u32+', 0x23_fe_ab_67,         b'\xfe\x23\x67\xab'),
+            ('u64+', 0xfe12_cd34_ab56_8971, b'\x12\xfe\x34\xcd\x56\xab\x71\x89'),
+            # little endian mixed endian
+            ('u16-', 0xab_67,               b'\xab\x67'),
+            ('u32-', 0x23_fe_ab_67,         b'\xab\x67\x23\xfe'),
+            ('u64-', 0xfe12_cd34_ab56_8971, b'\x89\x71\xab\x56\xcd\x34\xfe\x12'),
+        ]
+
+        for fmt, value, packed in fmts:
+            self.assertEqual(pack(fmt, value), packed)
+            self.assertEqual(unpack(fmt, packed), (value, ))
+
+        # only 16, 32, 64 bit allowed
+        with self.assertRaises(Error) as cm:
+            packed = bytearray(b'\x67\xab\xcf')
+            unpack('u24+', packed)
+            unpack('u24-', packed)
+            unpack('u8+', packed)
+            unpack('u20+', packed)
+
 
 if __name__ == '__main__':
     unittest.main()

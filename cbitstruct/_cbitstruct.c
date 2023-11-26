@@ -40,6 +40,7 @@ typedef struct {
     int nbits;
     bool be;
     bool valid;
+    bool me;
 } CompiledFormat;
 
 typedef union {
@@ -132,7 +133,7 @@ static int c_count_elements(const char* fmt)
 
 static CompiledFormat c_compile_format(const char* fmt)
 {
-    CompiledFormat compiled = {NULL, 0, 0, 0, true, true};
+    CompiledFormat compiled = {NULL, 0, 0, 0, true, true, false};
 
     const int n = c_count_elements(fmt);
     if (n <= 0 && *fmt != '>' && *fmt != '<' && *fmt != '\0') {
@@ -165,6 +166,19 @@ static CompiledFormat c_compile_format(const char* fmt)
     fmt = c_find_next(fmt);
     if (*fmt == '<') {
         compiled.be = false;
+    }
+    if (*fmt == '+') {
+        if (compiled.nbits != 16 && compiled.nbits != 32 && compiled.nbits != 64) {
+            goto invalid;
+        }
+        compiled.me = true;
+    }
+    if (*fmt == '-') {
+        if (compiled.nbits != 16 && compiled.nbits != 32 && compiled.nbits != 64) {
+            goto invalid;
+        }
+        compiled.be = false;
+        compiled.me = true;
     }
 
     return compiled;
@@ -220,6 +234,19 @@ static void c_byteswitch(uint8_t* data, int nbytes)
         end[-i] = data[i];
         data[i] = tmp;
     }
+}
+
+static uint64_t c_mixed_endian_byteswitch(uint64_t data, int nbits)
+{
+    uint64_t out = 0;
+
+    for (int i = 0; i < nbits; i += 8 * sizeof(uint16_t)) {
+        uint64_t ret = ((data & 0xff) << 8) | ((data >> 8) & 0xff);
+        out |= ret << i;
+        data >>= 8 * sizeof(uint16_t);
+    }
+
+    return out;
 }
 
 static void c_bitset(uint8_t* dst, int dst_bit_offset, int nbits)
@@ -351,6 +378,10 @@ static void c_pack(
             data = c_partial_c_byteswitch(data, desc->bits, bits_in_lsb);
         }
 
+        if (fmt.me) {
+            data = c_mixed_endian_byteswitch(data, desc->bits);
+        }
+
         c_bitcpy(out, bitoff, data, desc->bits);
     }
 }
@@ -397,6 +428,10 @@ static void c_unpack(
         }
         else {
             data >>= -last_byte_bits;
+        }
+
+        if (fmt.me) {
+            data = c_mixed_endian_byteswitch(data, desc->bits);
         }
 
         // Correct source data endianness, except for raw and text
